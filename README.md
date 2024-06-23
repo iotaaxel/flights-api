@@ -132,160 +132,40 @@ This code defines a FlightQuery struct that implements the Object trait from asy
 
 The flights field takes two arguments, source and destination, and returns a list of Flight objects.
 
-We then define a FlightSchema struct that implements the Schema trait from async_graphql. This trait defines the root query, mutation, and subscription types for our GraphQL schema.
+We then define a `FlightSchema` struct that implements the Schema trait from `async_graphql`. This trait defines the root query, mutation, and subscription types for our GraphQL schema.
 
-The graphql_route function handles GraphQL requests by executing them against our schema.
+The `graphql_route` function handles GraphQL requests by executing them against our schema.
 
-Finally, we add a new service to our Actix web server that listens for GraphQL requests at the /graphql endpoint.
+Finally, we add a new service to our `Actix` web server that listens for GraphQL requests at the `/graphql` endpoint.
 
 You can use a tool like curl to test the GraphQL API:
 
-`curl -X POST -H "Content-Type: application/json" -d '{"query": "query { flights(source: \"SFO\", destination: \"EWR\") { source, destination } }"}' http://localhost:8080/graphql`
+```
+curl -X POST -H "Content-Type: application/json" -d '{"query": "query { flights(source: \"SFO\", destination: \"EWR\") { source, destination } }"}' http://localhost:8080/graphql
+```
+
 This should return a list of flights from SFO to EWR.
 
-Note that this is just a basic example, and you would need to modify it to fit your specific use case.
-
 ### Option 2
-To integrate GraphQL into the previous code, we can use the async-graphql crate to define a GraphQL schema and resolvers. Here's an example of how we can modify the code to add GraphQL support:
-```
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
-use async_graphql::{graphql, Context, Object, Schema};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+- To integrate GraphQL into the previous code, we can use the `async-graphql` crate to define a GraphQL schema and resolvers. 
 
-// Define the GraphQL schema
-struct FlightSchema;
+- This code defines a GraphQL schema with two queries: flights and flightPath. The flights query returns a list of flights, and the flightPath query takes a list of flights as input and returns the calculated flight path.
 
-#[Object]
-impl FlightSchema {
-    async fn flights(&self, ctx: &Context<'_>) -> Vec<Flight> {
-        // Return a list of flights
-        vec![
-            Flight {
-                source: "SFO".to_string(),
-                destination: "EWR".to_string(),
-            },
-            Flight {
-                source: "ATL".to_string(),
-                destination: "EWR".to_string(),
-            },
-            Flight {
-                source: "SFO".to_string(),
-                destination: "ATL".to_string(),
-            },
-        ]
-    }
+- The `graphql_endpoint` function handles GraphQL requests and executes the queries using the graphql function from the `async-graphql` crate.
 
-    async fn flight_path(&self, ctx: &Context<'_>, flights: Vec<Flight>) -> FlightPath {
-        // Calculate the flight path
-        let mut flight_map: HashMap<String, String> = HashMap::new();
-        for flight in flights.iter() {
-            flight_map.insert(flight.destination.clone(), flight.source.clone());
-        }
-
-        let mut path = Vec::new();
-        let mut current_airport = flights[0].source.clone();
-        loop {
-            path.push(current_airport.clone());
-            if let Some(next_airport) = flight_map.get(&current_airport) {
-                current_airport = next_airport.clone();
-            } else {
-                break;
-            }
-        }
-
-        FlightPath { path }
-    }
-}
-
-// Define the GraphQL resolvers
-async fn flights_resolver(_ctx: &Context<'_>) -> Vec<Flight> {
-    // Return a list of flights
-    vec![
-        Flight {
-            source: "SFO".to_string(),
-            destination: "EWR".to_string(),
-        },
-        Flight {
-            source: "ATL".to_string(),
-            destination: "EWR".to_string(),
-        },
-        Flight {
-            source: "SFO".to_string(),
-            destination: "ATL".to_string(),
-        },
-    ]
-}
-
-async fn flight_path_resolver(_ctx: &Context<'_>, flights: Vec<Flight>) -> FlightPath {
-    // Calculate the flight path
-    let mut flight_map: HashMap<String, String> = HashMap::new();
-    for flight in flights.iter() {
-        flight_map.insert(flight.destination.clone(), flight.source.clone());
-    }
-
-    let mut path = Vec::new();
-    let mut current_airport = flights[0].source.clone();
-    loop {
-        path.push(current_airport.clone());
-        if let Some(next_airport) = flight_map.get(&current_airport) {
-            current_airport = next_airport.clone();
-        } else {
-            break;
-        }
-    }
-
-    FlightPath { path }
-}
-
-// Define the GraphQL schema and resolvers
-async fn schema() -> Schema<FlightSchema, Context> {
-    let schema = Schema::new(FlightSchema, Context);
-    schema.register_query("flights", flights_resolver);
-    schema.register_query("flightPath", flight_path_resolver);
-    schema
-}
-
-// Define the API endpoint
-async fn graphql_endpoint(req: web::Json<GraphQLRequest>) -> impl Responder {
-    let schema = schema().await;
-    let result = graphql(&schema, &req.query, &req.variables).await;
-    HttpResponse::Ok().json(result)
-}
-
-// Define the GraphQL request struct
-#[derive(Deserialize)]
-struct GraphQLRequest {
-    query: String,
-    variables: HashMap<String, String>,
-}
-
-// Define the main function
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
-        App::new()
-            .service(
-                web::resource("/graphql")
-                    .route(web::post().to(graphql_endpoint))
-                    .route(web::get().to(|| async { "Hello, world!" })),
-            )
-    })
-    .bind("127.0.0.1:8080")?
-    .run()
-    .await
-}
-```
-This code defines a GraphQL schema with two queries: flights and flightPath. The flights query returns a list of flights, and the flightPath query takes a list of flights as input and returns the calculated flight path.
-
-The graphql_endpoint function handles GraphQL requests and executes the queries using the graphql function from the async-graphql crate.
+### Usage
 
 To test the GraphQL endpoint, you can use a tool like curl:
 
-`curl -X POST -H "Content-Type: application/json" -d '{"query": "query { flights { source destination } }"}' http://localhost:8080/graphql`
+```
+curl -X POST -H "Content-Type: application/json" -d '{"query": "query { flights { source destination } }"}' http://localhost:8080/graphql
+```
+
 This should return a list of flights in JSON format.
 
-You can also use a GraphQL client library in your favorite programming language to query the endpoint. For example, in JavaScript, you can use the graphql-request library:
+## Suggestion: Consider using a GraphQL client library
+
+You can also use a GraphQL client library in your favorite programming language to query the endpoint. For example, in JavaScript, you can use the `graphql-request` library:
 ```
 import { GraphQLClient } from 'graphql-request';
 
@@ -304,4 +184,9 @@ client.request(query).then(data => console.log(data));
 ```
 This should also return a list of flights in JSON format.
 
+## Future Work
+- Error handling
+- Consider concurrency, fault tolerance, and general networking troubleshooting to sustain this API deployed in the wild
+- Use versioning
+- Make a user-friendly API. There are so many examples online of cool projects. 
 
