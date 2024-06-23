@@ -1,155 +1,46 @@
 # Overview
 
-Senior Software Engineer Take-Home Programming Assignment for Rust
+**Inspiration:** There are over 100,000 flights a day, with millions of people and cargo being transferred around the world. With so many people and different carrier/agency groups, it can be hard to track where a person might be. To determine the flight path of a person, we must sort through all of their flight records.
 
-Story: There are over 100,000 flights a day, with millions of people and cargo being transferred around the world. With so many people and different carrier/agency groups, it can be hard to track where a person might be. In order to determine the flight path of a person, we must sort through all of their flight records.
-
-Goal: To create a microservice API that can help us understand and track how a particular person’s flight path may be queried. The API should accept a request that includes a list of flights, which are defined by a source and destination airport code. These flights may not be listed in order and will need to be sorted to find the total flight paths starting and ending airports.
+**Goal:** Create a microservice API that can help us understand and track how a particular person’s flight path may be queried. The API should accept a request that includes a list of flights, which are defined by a source and destination airport code. These flights may not be listed in order and will need to be sorted to find the total flight paths starting and ending airports.
 
 Required JSON structure: 
-
+```json
 [["SFO", "EWR"]]                              => ["SFO", "EWR"]
 [["ATL", "EWR"], ["SFO", "ATL"]]              => ["SFO", "EWR"]
 [["IND", "EWR"], ["SFO", "ATL"], ["GSO", "IND"], ["ATL", "GSO"]]
 => ["SFO", "EWR"]
-
-
-
-Specifications: 
-Your miscroservice must listen on port 8080 and expose the flight path tracker under /calculate endpoint.
-
-Define and document the format of the API endpoint in the README.
-
-Use Rust and/or with any tools that you think will help you best accomplish the task at hand.
+```
 
 ## Option 1
-Here is an example of how you can implement the flight path tracker microservice in Rust:
-```rust
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
-struct Flight {
-    source: String,
-    destination: String,
-}
+- This code defines a `Flight` struct to represent a single flight, and a `FlightPath` struct to represent the calculated flight path.
+- The `calculate_flight_path` function takes a list of flights as input, builds a graph representing the flights, and then uses a depth-first search (DFS) algorithm to find the total flight path.
 
-#[derive(Serialize, Deserialize)]
-struct FlightPath {
-    path: Vec<String>,
-}
+- The API endpoint is defined as a POST request to `/calculate`, which accepts a JSON payload containing a list of flights. The response is a JSON object containing the calculated flight path.
 
-async fn calculate_flight_path(flights: web::Json<Vec<Flight>>) -> impl Responder {
-    let mut graph: HashMap<String, Vec<String>> = HashMap::new();
-    for flight in flights.iter() {
-        graph.entry(flight.source.clone()).or_insert(Vec::new()).push(flight.destination.clone());
-    }
-    let mut visited: HashMap<String, bool> = HashMap::new();
-    let mut path: Vec<String> = Vec::new();
-    for airport in graph.keys() {
-        if !visited.contains_key(airport) {
-            dfs(&graph, airport, &mut visited, &mut path);
-        }
-    }
-    HttpResponse::Ok().json(FlightPath { path })
-}
+### Usage:
+To run the microservice, simply execute the binary and it will start listening on port 8080. You can then use a tool like curl to test the API endpoint. 
 
-fn dfs(graph: &HashMap<String, Vec<String>>, airport: &str, visited: &mut HashMap<String, bool>, path: &mut Vec<String>) {
-    visited.insert(airport.to_string(), true);
-    path.push(airport.to_string());
-    if let Some(destinations) = graph.get(airport) {
-        for destination in destinations {
-            if !visited.contains_key(destination) {
-                dfs(graph, destination, visited, path);
-            }
-        }
-    }
-}
-
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
-        App::new().service(
-            web::resource("/calculate")
-                .route(web::post().to(calculate_flight_path))
-                .route(web::get().to(|| async { "Welcome to the flight path tracker!" })),
-        )
-    })
-    .bind("127.0.0.1:8080")?
-    .run()
-    .await
-}
 ```
-This code defines a Flight struct to represent a single flight, and a FlightPath struct to represent the calculated flight path. The calculate_flight_path function takes a list of flights as input, builds a graph representing the flights, and then uses a depth-first search (DFS) algorithm to find the total flight path.
-
-The API endpoint is defined as a POST request to /calculate, which accepts a JSON payload containing a list of flights. The response is a JSON object containing the calculated flight path.
-
-To run the microservice, simply execute the binary and it will start listening on port 8080. You can then use a tool like curl to test the API endpoint. For example:
-
-`curl -X POST -H "Content-Type: application/json" -d '[{"source": "SFO", "destination": "EWR"}, {"source": "ATL", "destination": "EWR"}, {"source": "SFO", "destination": "ATL"}]' http://localhost:8080/calculate`
+curl -X POST -H "Content-Type: application/json" -d '[{"source": "SFO", "destination": "EWR"}, {"source": "ATL", "destination": "EWR"}, {"source": "SFO", "destination": "ATL"}]' http://localhost:8080/calculate
+```
 
 This should return the calculated flight path `["SFO", "EWR"]`.
 
 ## Option 2
-Here is an example of how you can create a microservice API in Rust to track a person's flight path:
-```
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
-struct Flight {
-    source: String,
-    destination: String,
-}
+- This code defines a `Flight` struct to represent a single flight, and a `FlightPath` struct to represent the calculated flight path.
+- The `calculate_flight_path` function takes a list of flights as input, builds a map of destination airports to source airports, and then uses this map to construct the flight path.
+- The API endpoint is defined using the `actix-web` framework, and listens on port 8080. The /calculate endpoint accepts a POST request with a JSON body containing a list of flights, and returns a JSON response containing the calculated flight path.
 
-#[derive(Serialize, Deserialize)]
-struct FlightPath {
-    path: Vec<String>,
-}
-
-async fn calculate_flight_path(flights: web::Json<Vec<Flight>>) -> impl Responder {
-    let mut flight_map: HashMap<String, String> = HashMap::new();
-    for flight in flights.iter() {
-        flight_map.insert(flight.destination.clone(), flight.source.clone());
-    }
-
-    let mut path = Vec::new();
-    let mut current_airport = flights[0].source.clone();
-    loop {
-        path.push(current_airport.clone());
-        if let Some(next_airport) = flight_map.get(&current_airport) {
-            current_airport = next_airport.clone();
-        } else {
-            break;
-        }
-    }
-
-    HttpResponse::Ok().json(FlightPath { path })
-}
-
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
-        App::new().service(
-            web::resource("/calculate")
-                .route(web::post().to(calculate_flight_path))
-                .route(web::get().to(|| async { "Hello, world!" })),
-        )
-    })
-    .bind("127.0.0.1:8080")?
-    .run()
-    .await
-}
-```
-This code defines a Flight struct to represent a single flight, and a FlightPath struct to represent the calculated flight path. The calculate_flight_path function takes a list of flights as input, builds a map of destination airports to source airports, and then uses this map to construct the flight path.
-
-The API endpoint is defined using the actix-web framework, and listens on port 8080. The /calculate endpoint accepts a POST request with a JSON body containing a list of flights, and returns a JSON response containing the calculated flight path.
-
+### Usage:
 To run the microservice, simply execute the main function. You can use a tool like curl to test the API endpoint:
 
-`curl -X POST -H "Content-Type: application/json" -d '[{"source": "SFO", "destination": "EWR"}, {"source": "ATL", "destination": "EWR"}, {"source": "SFO", "destination": "ATL"}]' http://localhost:8080/calculate`
+```
+curl -X POST -H "Content-Type: application/json" -d '[{"source": "SFO", "destination": "EWR"}, {"source": "ATL", "destination": "EWR"}, {"source": "SFO", "destination": "ATL"}]' http://localhost:8080/calculate
+```
+
 This should return the calculated flight path `["SFO", "EWR"]`.
 
 Note that this implementation assumes that the input flights are valid and correctly formatted. You may want to add additional error handling and validation to make the API more robust.
